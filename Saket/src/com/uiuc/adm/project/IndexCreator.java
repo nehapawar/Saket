@@ -7,6 +7,9 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -34,6 +37,7 @@ public class IndexCreator {
 		try {
 			bw = new BufferedWriter(new FileWriter(new File(output), false));
 			bw.write("");
+		
 			bw.close();
 			bw = new BufferedWriter(new FileWriter(new File(output), true));
 		} catch (IOException e) {
@@ -41,6 +45,7 @@ public class IndexCreator {
 			e.printStackTrace();
 		}
 		
+		//Method which sets the ball rolling
 		createIndex();
 	}
 	
@@ -48,15 +53,19 @@ public class IndexCreator {
 	{
 		
 		instantiateBTree();
+		//read dataset and create BTree
 		AddToBTree();
+		//display the btree created
 		displayBTree();
-		
+		//some testing of retrievals, by value, ranges etc
 		testRetrieve();
-		
+		//Write metadata to file 
 		writeMetadata();
+		//Write btree to file
 		serializeBTreeToFile();
+		//read btree back from file
 		deserializeBTreeFromFile();
-		
+		//some testing with btree read from file
 		testRetrieve();
 		
 		db.close();
@@ -87,15 +96,28 @@ public class IndexCreator {
         tree = BTree.createInstance(db);
 	}
 	
+	//reads each tuple and creates btree, with attribute_value as key
+	//and an arraylist of offsets as value
 	private void AddToBTree() throws IOException {
 		try {
-			int lineNo = 0;
+			//int lineNo = 0;
+			
 			Scanner in = new Scanner(new File(input));
+			
+			RandomAccessFile aFile=new RandomAccessFile(input, "rw");
+			
 			while (in.hasNext())
 			{
-				lineNo++;
-				String[] array = in.nextLine().split(",");
-			//System.out.println(lineNo+" "+array[6]);
+				//lineNo++;
+				String line= in.nextLine();
+				
+				long offset = aFile.getFilePointer();
+				aFile.readLine();
+				
+				
+				//System.out.println(offset+" "+l+" "+l.length());
+				String[] array = line.split(",");
+			
 				
 				//insert in Btree the key and value (indexed attribute and offset)
 				//insertIntoBTree(array[6], lineNo);
@@ -105,17 +127,19 @@ public class IndexCreator {
 				
 				if (tree.get(array[6])==null)
 				{
-					ArrayList<Integer> value = new ArrayList<Integer>();
-					value.add(lineNo);
+					ArrayList<Long> value = new ArrayList<Long>();
+					value.add(offset);
 					tree.insert(array[6], value, false);
 				}
 				else
 				{
-					ArrayList<Integer> value = (ArrayList<Integer>) tree.get(array[6]);
-					value.add(lineNo);
+					ArrayList<Long> value = (ArrayList<Long>) tree.get(array[6]);
+					value.add(offset);
 					tree.insert(array[6], value, true);
 				}
 			}
+			//aFile.seek(525);
+			//System.out.println(aFile.readLine());
 		} catch (FileNotFoundException e) 
 		{
 			// TODO Auto-generated catch block
@@ -141,8 +165,8 @@ public class IndexCreator {
         {
         	//System.out.println(tuple.key+" "+tuple.value);
         	bw.write(tuple.key+"");
-        	ArrayList<Integer> tmp = (ArrayList<Integer>) tuple.value;
-        	for (Integer i : tmp)
+        	ArrayList<Long> tmp = (ArrayList<Long>) tuple.value;
+        	for (Long i : tmp)
         	{
         		bw.write(","+i);
         	}
@@ -174,30 +198,22 @@ public class IndexCreator {
 			{
 				line=in.nextLine();
 				String[] node = line.split(",");
-				ArrayList<Integer> value = new ArrayList<Integer>();
+				ArrayList<Long> value = new ArrayList<Long>();
 				
 				for (int i=1; i<node.length; i++)
 				{
-					value.add(Integer.parseInt(node[i]));
+					value.add(Long.parseLong(node[i]));
 				}
 				tree.insert(node[0], value, false);
 			}
 			
 		}
 		
-		
-		
-	
-		
-		
-		
-		
-		
 	}
 	
 	void testRetrieve() throws IOException
 	{
-		ArrayList<Integer> values = null;
+		ArrayList<Long> values = null;
 		
 		values = retrieveIndex("105078044", 1);
 		displayResults(values);
@@ -214,9 +230,9 @@ public class IndexCreator {
 		
 	}
 	
-	void displayResults(ArrayList<Integer> values)
+	void displayResults(ArrayList<Long> values)
 	{
-		for (Integer i : values)
+		for (Long i : values)
 			System.out.print(i+" ");
 		System.out.println();
 	}
@@ -229,14 +245,14 @@ public class IndexCreator {
 	 * Mode 3 : return less than key1
 	 */
 	@SuppressWarnings("unchecked")
-	ArrayList<Integer> retrieveIndex(String key, int mode) throws IOException
+	ArrayList<Long> retrieveIndex(String key, int mode) throws IOException
 	{
-		ArrayList<Integer> result = null;
+		ArrayList<Long> result = null;
 		switch(mode)
 		{
 			case 1:
 			{
-				result =  (ArrayList<Integer>) tree.get(key);
+				result =  (ArrayList<Long>) tree.get(key);
 				break;
 			}
 				
@@ -244,11 +260,11 @@ public class IndexCreator {
 			{
 				BTree.BTreeTupleBrowser browser = tree.browse(key, false);
 		        BTree.BTreeTuple tuple = new BTree.BTreeTuple();
-		        result = new ArrayList<Integer>();
+		        result = new ArrayList<Long>();
 		        while (browser.getNext(tuple)) 
 		        {
-		        	ArrayList<Integer> tmp = (ArrayList<Integer>) tuple.value;
-		        	for (Integer i : tmp)
+		        	ArrayList<Long> tmp = (ArrayList<Long>) tuple.value;
+		        	for (Long i : tmp)
 		        	{
 		        		result.add(i);
 		        	}
@@ -260,12 +276,12 @@ public class IndexCreator {
 			{
 				BTree.BTreeTupleBrowser browser = tree.browse();
 		        BTree.BTreeTuple tuple = new BTree.BTreeTuple();
-		        result = new ArrayList<Integer>();
+		        result = new ArrayList<Long>();
 		        while (browser.getNext(tuple)) 
 		        {
 		        	if (((String)tuple.key).compareTo(key)>=0) break;
-		        	ArrayList<Integer> tmp = (ArrayList<Integer>) tuple.value;
-		        	for (Integer i : tmp)
+		        	ArrayList<Long> tmp = (ArrayList<Long>) tuple.value;
+		        	for (Long i : tmp)
 		        	{
 		        		result.add(i);
 		        	}
@@ -277,9 +293,9 @@ public class IndexCreator {
 	}
 	
 	
-	ArrayList<Integer> retrieveIndex(String key1, String key2, int mode) throws IOException
+	ArrayList<Long> retrieveIndex(String key1, String key2, int mode) throws IOException
 	{
-		ArrayList<Integer> result = new ArrayList<Integer>();
+		ArrayList<Long> result = new ArrayList<Long>();
 		
 		//start at key1
 		BTree.BTreeTupleBrowser browser = tree.browse(key1, false);
@@ -289,9 +305,9 @@ public class IndexCreator {
         	//stop at key2
         	if (((String)tuple.key).compareTo(key2)>=0) break;
         	
-        	ArrayList<Integer> tmp = (ArrayList<Integer>) tuple.value;
+        	ArrayList<Long> tmp = (ArrayList<Long>) tuple.value;
         	
-        	for (Integer i : tmp)
+        	for (Long i : tmp)
         	{
         		result.add(i);
         	}
